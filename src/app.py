@@ -34,13 +34,20 @@ def reset_analysis():
 @st.cache_resource
 def load_all_models():
     try:
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))   # src/
+        ROOT_DIR = os.path.abspath(os.path.join(BASE_DIR, ".."))  # project root
+        MODEL_DIR = os.path.join(ROOT_DIR, "models")
+
         models = {
-            "Logistic Regression": joblib.load('models/logistic_regression.pkl'),
-            "Decision Tree": joblib.load('models/decision_tree.pkl'),
-            "Random Forest": joblib.load('models/random_forest.pkl')
+            "Logistic Regression": joblib.load(os.path.join(MODEL_DIR, "logistic_regression.pkl")),
+            "Decision Tree": joblib.load(os.path.join(MODEL_DIR, "decision_tree.pkl")),
+            "Random Forest": joblib.load(os.path.join(MODEL_DIR, "random_forest.pkl")),
         }
-        metrics = joblib.load('models/model_metrics.pkl')
+
+        metrics = joblib.load(os.path.join(MODEL_DIR, "model_metrics.pkl"))
+
         return models, metrics
+
     except Exception as e:
         st.error(f"Error loading models: {e}")
         return {}, {}
