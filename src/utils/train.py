@@ -25,7 +25,7 @@ def train_and_save(file_path="src/data/heart_cleaned.csv"):
     models = {
         "Logistic Regression": Pipeline([
             ("scaler", StandardScaler()),
-            ("model", LogisticRegression(max_iter=1000))
+            ("model", LogisticRegression(max_iter=1000, solver="liblinear"))
         ]),
         "Decision Tree": Pipeline([
             ("model", DecisionTreeClassifier(max_depth=5, random_state=42))
