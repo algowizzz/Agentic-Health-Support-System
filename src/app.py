@@ -5,6 +5,9 @@ import joblib
 import os
 import time
 
+# ---------------------------------------------------
+# PAGE CONFIG
+# ---------------------------------------------------
 st.set_page_config(page_title="MediRisk AI", layout="wide")
 
 FEATURE_COLUMNS = [
@@ -13,6 +16,9 @@ FEATURE_COLUMNS = [
     'oldpeak', 'slope', 'ca', 'thal'
 ]
 
+# ---------------------------------------------------
+# SESSION STATE
+# ---------------------------------------------------
 if "analysis_run" not in st.session_state:
     st.session_state.analysis_run = False
 if "risk_prob" not in st.session_state:
@@ -20,20 +26,34 @@ if "risk_prob" not in st.session_state:
 if "feature_imp" not in st.session_state:
     st.session_state.feature_imp = {}
 
+# ---------------------------------------------------
+# SAFE MODEL LOADING (WORKS LOCAL + CLOUD)
+# ---------------------------------------------------
 @st.cache_resource
 def load_models():
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    ROOT_DIR = os.path.abspath(os.path.join(BASE_DIR, ".."))
-    MODEL_DIR = os.path.join(ROOT_DIR, "models")
+    try:
+        # Absolute safe path
+        PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        MODEL_DIR = os.path.join(PROJECT_ROOT, "models")
 
-    return {
-        "Logistic Regression": joblib.load(os.path.join(MODEL_DIR, "logistic_regression.pkl")),
-        "Decision Tree": joblib.load(os.path.join(MODEL_DIR, "decision_tree.pkl")),
-        "Random Forest": joblib.load(os.path.join(MODEL_DIR, "random_forest.pkl")),
-    }
+        models = {
+            "Logistic Regression": joblib.load(os.path.join(MODEL_DIR, "logistic_regression.pkl")),
+            "Decision Tree": joblib.load(os.path.join(MODEL_DIR, "decision_tree.pkl")),
+            "Random Forest": joblib.load(os.path.join(MODEL_DIR, "random_forest.pkl")),
+        }
+
+        return models
+
+    except Exception as e:
+        st.error("🚨 Model loading failed")
+        st.error(str(e))
+        return {}
 
 all_models = load_models()
 
+# ---------------------------------------------------
+# INPUT PREPROCESSING
+# ---------------------------------------------------
 def preprocess_inputs(age, gender, cp, trestbps, chol,
                       glucose, restecg, thalach,
                       exang, oldpeak, slope, ca, thal):
@@ -85,6 +105,9 @@ def preprocess_inputs(age, gender, cp, trestbps, chol,
 
     return pd.DataFrame([processed], columns=FEATURE_COLUMNS)
 
+# ---------------------------------------------------
+# PREDICTION
+# ---------------------------------------------------
 def predict_risk(model, input_df):
     return float(model.predict_proba(input_df)[0][1])
 
@@ -112,6 +135,9 @@ def categorize_risk(prob):
     else:
         return "HIGH"
 
+# ---------------------------------------------------
+# UI STYLING
+# ---------------------------------------------------
 st.markdown("""
 <style>
 body, .stApp {
@@ -157,7 +183,6 @@ body, .stApp {
     margin-top: 12px;
 }
 
-/* Pulse animation for high risk */
 @keyframes pulse {
     0% { box-shadow: 0 0 0px rgba(239,68,68,0.5); }
     50% { box-shadow: 0 0 25px rgba(239,68,68,0.9); }
@@ -166,6 +191,9 @@ body, .stApp {
 </style>
 """, unsafe_allow_html=True)
 
+# ---------------------------------------------------
+# TITLE
+# ---------------------------------------------------
 st.title("Patient Risk Assessment System")
 st.caption("AI-based clinical risk prediction using Cleveland Heart Disease dataset")
 st.divider()
@@ -201,23 +229,35 @@ with left:
         "Fixed Defect",
         "Reversible Defect"
     ])
-    model_name = st.selectbox("Model Selection",
-                              ["Random Forest", "Logistic Regression", "Decision Tree"])
+    model_name = st.selectbox("Model Selection", list(all_models.keys()))
 
 with right:
     st.subheader("Assessment Result")
 
     if st.button("Run Risk Assessment", use_container_width=True):
+
+        if model_name not in all_models:
+            st.error("Model not loaded properly.")
+            st.stop()
+
         with st.spinner("Running ML inference..."):
             time.sleep(1)
-            input_df = preprocess_inputs(
-                age, gender, cp, trestbps, chol,
-                glucose, restecg, thalach,
-                exang, oldpeak, slope, ca, thal
-            )
-            model = all_models.get(model_name)
-            prob = predict_risk(model, input_df)
-            importance = extract_feature_importance(model)
+
+            try:
+                input_df = preprocess_inputs(
+                    age, gender, cp, trestbps, chol,
+                    glucose, restecg, thalach,
+                    exang, oldpeak, slope, ca, thal
+                )
+
+                model = all_models[model_name]
+                prob = predict_risk(model, input_df)
+                importance = extract_feature_importance(model)
+
+            except Exception as e:
+                st.error("Prediction failed.")
+                st.error(str(e))
+                st.stop()
 
             st.session_state.risk_prob = prob
             st.session_state.feature_imp = dict(list(importance.items())[:5])
