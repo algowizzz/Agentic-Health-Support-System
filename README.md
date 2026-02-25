@@ -152,7 +152,6 @@ pip install -r src/requirements.txt
 Start the Streamlit application:
 
 ```bash
-cd ui
 streamlit run streamlit_app.py
 ```
 
