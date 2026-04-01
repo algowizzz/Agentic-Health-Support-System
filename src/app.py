@@ -19,8 +19,10 @@ if 'risk_prob' not in st.session_state:
     st.session_state.risk_prob = 0.0
 if 'feature_imp' not in st.session_state:
     st.session_state.feature_imp = {}
-if 'model_choice' not in st.session_state:
-    st.session_state.model_choice = "Random Forest"
+if 'history' not in st.session_state:
+    st.session_state.history = []
+# if 'model_choice' not in st.session_state:
+#     st.session_state.model_choice = "Random Forest"
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = "Risk Assessment"
 
@@ -217,7 +219,6 @@ if st.session_state.active_tab == "Risk Assessment":
             age_val = st.number_input("Age", 1, 100, 45, on_change=reset_analysis)
             sex_val = st.selectbox("Gender", ["Male", "Female"], on_change=reset_analysis)
         with col2:
-            model_name = st.selectbox("Model Selection", ["Random Forest", "Logistic Regression", "Decision Tree"], index=0, key="model_sel", on_change=reset_analysis)
             bmi_val = st.number_input("BMI (kg/m²)", 10.0, 50.0, value=None, step=0.1, placeholder="Enter BMI", on_change=reset_analysis)
             exercise_val = st.selectbox("Exercise Level", ["Low", "Moderate", "High"], on_change=reset_analysis)
         
@@ -266,7 +267,7 @@ if st.session_state.active_tab == "Risk Assessment":
         
         ce1, ce2 = st.columns(2)
         with ce1:
-            cp_val = st.selectbox("CP TYPE", ["Typical Angina", "Atypical Angina", "Non-anginal Pain", "Asymptomatic"], index=3, on_change=reset_analysis)
+            cp_val = st.selectbox("CP TYPE - Chest Pain Type", ["Typical Angina", "Atypical Angina", "Non-anginal Pain", "Asymptomatic"], index=3, on_change=reset_analysis)
             ecg_val = st.selectbox("RESTING ECG", ["Normal", "ST-T abnormality", "LV hypertrophy"], on_change=reset_analysis)
             exang_val = st.selectbox("EXERCISE ANGINA", ["No", "Yes"], on_change=reset_analysis)
         with ce2:
@@ -278,12 +279,12 @@ if st.session_state.active_tab == "Risk Assessment":
     with r:
         st.markdown('<p class="card-label">System Control</p>', unsafe_allow_html=True)
         
-        st.session_state.model_choice = model_name
+        # st.session_state.model_choice = model_name
         
         if st.button("RUN RISK ASSESSMENT", use_container_width=True):
             with st.spinner("Processing Clinical Tensors..."):
                 time.sleep(1.2)
-                model = all_models.get(st.session_state.model_choice)
+                model = all_models.get("Random Forest")
                 if model:
                     s_num = 1.0 if sex_val == "Male" else 0.0
                     cp_map = {"Typical Angina": 1, "Atypical Angina": 2, "Non-anginal Pain": 3, "Asymptomatic": 4}
@@ -302,6 +303,16 @@ if st.session_state.active_tab == "Risk Assessment":
                     
                     st.session_state.risk_prob = model.predict_proba(input_vec)[0][1]
                     st.session_state.analysis_run = True
+
+                    p = st.session_state.risk_prob
+                    lvl = "LOW" if p < 0.4 else "MODERATE" if p < 0.7 else "HIGH"
+
+                    st.session_state.history.append({
+                        "Name": p_name if p_name else "Unknown",
+                        "Risk Score": round(p, 2),
+                        "Risk Level": lvl,
+                        "Date": time.strftime("%Y-%m-%d %H:%M")
+                    })
                     
                     inner = model.named_steps['model']
                     features = ['Age', 'Sex', 'CP', 'BP', 'Chol', 'Fasting Sugar', 'ECG', 'Heart Rate', 'Exercise Angina', 'Peak', 'Slope', 'CA', 'Thal']
@@ -326,14 +337,35 @@ if st.session_state.active_tab == "Risk Assessment":
             st.markdown(f"""
             <div class="risk-circle" style="border-color: {'#10b981' if p < 0.4 else '#f59e0b' if p < 0.7 else '#ef4444'};">
                 <div class="risk-val">{p:.2f}</div>
-                <div class="risk-unit">RISK SCORE</div>
+                <div class="risk-unit">HEART HEALTH RISK</div>
             </div>
             """, unsafe_allow_html=True)
             
             lvl = "LOW" if p < 0.4 else "MODERATE" if p < 0.7 else "HIGH"
+            if p < 0.4:
+                message = "Your heart health looks good. Keep maintaining a healthy lifestyle."
+                tips = [
+                    "Continue regular exercise",
+                    "Maintain balanced diet",
+                    "Monitor health annually"
+                ]
+            elif p < 0.7:
+                message = "You have a moderate risk. Some lifestyle improvements are recommended."
+                tips = [
+                    "Reduce cholesterol intake",
+                    "Increase physical activity",
+                    "Monitor blood pressure regularly"
+                ]
+            else:
+                message = "You have a high risk. It is strongly advised to consult a doctor."
+                tips = [
+                    "Consult a cardiologist immediately",
+                    "Control blood pressure & sugar levels",
+                    "Follow a strict diet plan"
+                ]
             color = "#10b981" if p < 0.4 else "#f59e0b" if p < 0.7 else "#ef4444"
             st.markdown(f'<div style="text-align:center; font-weight:700; color:{color}; font-size:1.4rem; margin-bottom:30px;">{lvl} RISK CATEGORY</div>', unsafe_allow_html=True)
-            
+            st.markdown(f'<div style="text-align:center; color:var(--text-muted); font-size:0.9rem; margin-bottom:20px;">{message}</div>', unsafe_allow_html=True)
             st.markdown('<div style="font-size:0.85rem; font-weight:700; color:var(--text); margin-bottom:15px; text-transform:uppercase;">Key Drivers</div>', unsafe_allow_html=True)
             for feat, val in st.session_state.feature_imp.items():
                 st.markdown(f"""
@@ -365,7 +397,32 @@ elif st.session_state.active_tab == "Health Agent":
         st.markdown('<p style="font-size: 0.8rem; color: var(--text-muted); text-align:center; margin-top:40px;">Neural Sync Progress</p>', unsafe_allow_html=True)
         st.progress(0.15)
 
-else:
-    st.markdown(f'<h3 style="text-align:center; padding: 60px 0; color:var(--text-muted);">{st.session_state.active_tab} — Coming in Milestone 2</h3>', unsafe_allow_html=True)
+elif st.session_state.active_tab == "Patient History":
+    st.markdown("# Patient History")
+
+    if len(st.session_state.history) == 0:
+        st.info("No patient records yet. Run an assessment first.")
+    else:
+        df = pd.DataFrame(st.session_state.history)
+        st.dataframe(df, use_container_width=True)
+elif st.session_state.active_tab == "Analytics":
+    st.markdown("#Analytics Dashboard")
+
+    if len(st.session_state.history) == 0:
+        st.info("No data available for analytics.")
+    else:
+        df = pd.DataFrame(st.session_state.history)
+
+        st.markdown("#### Risk Distribution")
+        st.bar_chart(df["Risk Level"].value_counts())
+
+        st.markdown("#### Risk Trend Over Time")
+        df["Date"] = pd.to_datetime(df["Date"])
+        df_sorted = df.sort_values("Date")
+
+        st.line_chart(df_sorted.set_index("Date")["Risk Score"])
+
+        avg_risk = df["Risk Score"].mean()
+        st.metric("Average Risk Score", round(avg_risk, 2))
 
 st.markdown('<div style="text-align: center; color: var(--text-muted); font-size: 0.7rem; margin-top: 40px; padding: 20px;">VERIFIED FOR CLINICAL EVALUATION • MEDIRISK PRO V2.5</div>', unsafe_allow_html=True)
