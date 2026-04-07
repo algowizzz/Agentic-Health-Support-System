@@ -10,7 +10,6 @@ import datetime
 MODEL_PATH = Path("models/random_forest.pkl")
 OUTPUT_DIR = Path("exports")
 
-# ✅ Metadata function (for Chrome tab title)
 def add_metadata(canvas, doc, patient_name):
     canvas.setTitle(f"Medical Report - {patient_name}")
 
@@ -23,14 +22,12 @@ def predict_and_export_pdf(patient_data, patient_name, file_name="report"):
     prob = model.predict_proba(df)[0][1]
     result = "Heart Disease Detected" if pred == 1 else "No Heart Disease"
 
-    # ✅ Sex formatting
     try:
         sex_value = int(float(patient_data.get("sex", 0)))
         sex_label = "Male" if sex_value == 1 else "Female"
     except:
         sex_label = "Unknown"
 
-    # ✅ Clean filename
     clean_name = patient_name.replace(" ", "_")
     OUTPUT_DIR.mkdir(exist_ok=True)
     pdf_path = OUTPUT_DIR / f"Medical_Report_{clean_name}.pdf"
