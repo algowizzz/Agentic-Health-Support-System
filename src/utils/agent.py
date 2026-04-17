@@ -10,9 +10,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-# ═══════════════════════════════════════════════════════════════
 # Part 1 — Tool Definitions
-# ═══════════════════════════════════════════════════════════════
+
 
 def create_tools(patient_data, risk_prob, vectorstore=None):
     """
@@ -347,6 +346,100 @@ def _interpret_age(data):
     else:
         risk = "Higher age-related cardiovascular risk. More frequent monitoring advised."
     return f"Age: {age} years\nInterpretation: {risk}"
+
+
+# ═══════════════════════════════════════════════════════════════
+# Part 2 — ReAct Agent + Memory Setup
+# ═══════════════════════════════════════════════════════════════
+
+def create_health_agent(patient_data, risk_prob, vectorstore, memory):
+    """
+    Builds the ReAct agent with tools and memory.
+    """
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise ValueError("`GROQ_API_KEY` is not set. Please add it to your `.env` file to activate the AI Agent.")
+
+    llm = ChatGroq(
+        groq_api_key=api_key,
+        model_name="llama-3.1-8b-instant",
+        temperature=0.2
+    )
+
+    tools = create_tools(patient_data, risk_prob, vectorstore)
+
+    patient_context = f"""
+Patient Profile:
+- Name: {patient_data.get('name', 'Unknown')}
+- Age: {patient_data.get('age', 'Unknown')}
+- Gender: {'Male' if patient_data.get('sex', 0) == 1.0 else 'Female'}
+- BMI: {patient_data.get('bmi', 'Unknown')}
+
+Clinical Vitals:
+- Blood Pressure: {patient_data.get('trestbps', 'Unknown')} mmHg
+- Cholesterol: {patient_data.get('chol', 'Unknown')} mg/dL
+- Max Heart Rate: {patient_data.get('thalach', 'Unknown')} BPM
+- Fasting Blood Sugar: {'> 120' if patient_data.get('fbs', 0) == 1.0 else '< 120'} mg/dL
+
+Current Model Assessment:
+- Heart Disease Risk Probability: {risk_prob * 100:.1f}%
+"""
+
+    system_prefix = f"""You are MediRisk AI, an intelligent clinical assistant.
+You have access to the following patient context:
+{patient_context}
+
+Answer the user's query professionally, accurately, and compassionately. Try to format your output using markdown for readability.
+If the query is unrelated to health or the patient's profile, politely redirect the conversation to health matters.
+"""
+
+    prompt = PromptTemplate.from_template(
+        system_prefix + """
+TOOLS:
+------
+
+You have access to the following tools:
+
+{tools}
+
+To use a tool, please use the following format:
+
+```
+Thought: Do I need to use a tool? Yes
+Action: the action to take, should be one of [{tool_names}]
+Action Input: the input to the action
+Observation: the result of the action
+```
+
+When you have a response to say to the Human, or if you do not need to use a tool, you MUST use the format:
+
+```
+Thought: Do I need to use a tool? No
+Final Answer: [your response here]
+```
+
+Begin!
+
+Previous conversation history:
+{chat_history}
+
+New input: {input}
+{agent_scratchpad}"""
+    )
+
+    agent = create_react_agent(llm, tools, prompt)
+    
+    agent_executor = AgentExecutor(
+        agent=agent, 
+        tools=tools, 
+        memory=memory,
+        verbose=False, 
+        handle_parsing_errors=True,
+        max_iterations=5,
+        return_intermediate_steps=True
+    )
+    
+    return agent_executor
 
 
 # ═══════════════════════════════════════════════════════════════
