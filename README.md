@@ -144,7 +144,7 @@ venv\Scripts\activate
 Install all required packages using the requirements.txt file:
 
 ```bash
-pip install -r src/requirements.txt
+pip install -r requirements.txt
 ```
 
 ## Step 4: Run the Application
